@@ -7,13 +7,6 @@
 #include <utility>
 
 namespace internal_variadic_set {
-template <typename C>
-class duplicate_element : public std::exception {
- public:
-  duplicate_element(C v) : value(v) {}
-  C value;
-};
-
 template <typename C, C... vs>
 constexpr C get_at_(size_t idx) noexcept {
   return std::data({vs...})[idx];
@@ -99,13 +92,13 @@ struct Sorted_;
 
 template <typename C, size_t N, size_t... idx>
 struct Sorted_<C, N, std::index_sequence<idx...>> {
-  constexpr Sorted_(std::array<C, N> in) : list{in[idx]...}, data_index{} {
+  constexpr Sorted_(std::array<C, N> in) noexcept
+      : list{in[idx]...}, data_index{} {
     for (size_t p = 1; p < N; ++p) {
       C v = list[p];
       size_t q = 0;
       while (q < p && list[q] < v) ++q;
       if (q == p) continue;
-      if (list[q] == v) throw duplicate_element<C>{v};
       for (size_t r = p; r > q; --r) {
         list[r] = list[r - 1];
         data_index[r] = data_index[r - 1];
@@ -120,13 +113,48 @@ struct Sorted_<C, N, std::index_sequence<idx...>> {
 };
 
 template <typename C, C... vs>
-constexpr auto sorted_() {
+constexpr auto sorted_() noexcept {
   return Sorted_<C, sizeof...(vs), std::make_index_sequence<sizeof...(vs)>>(
       {vs...});
 }
 
+template <typename C, C c1, C c2>
+constexpr bool is_ordered_list_without_duplications_atom_() noexcept {
+  // Triggers compilation error when c1 == c2 with good diagnostics.
+  switch (c1) {
+    case c1:
+    case c2:;
+  }
+  return c1 < c2;
+}
+
+template <typename C>
+constexpr bool is_ordered_list_without_duplications_(
+    std::integer_sequence<C>, std::index_sequence<>) noexcept {
+  return true;
+}
+
+template <typename C, C c>
+constexpr bool is_ordered_list_without_duplications_(
+    std::integer_sequence<C, c>, std::index_sequence<0>) noexcept {
+  return true;
+}
+
+template <typename C, C... vs, size_t... is>
+constexpr bool is_ordered_list_without_duplications_(
+    std::integer_sequence<C, vs...>, std::index_sequence<0, is...>) noexcept {
+  constexpr std::array<C, sizeof...(vs)> values{vs...};
+  return (is_ordered_list_without_duplications_atom_<C, values[is - 1],
+                                                     values[is]>() &&
+          ...);
+}
+
 template <typename C, C... vs>
 struct Set_ {
+  static_assert(is_ordered_list_without_duplications_(
+      std::integer_sequence<C, vs...>{},
+      std::make_index_sequence<sizeof...(vs)>{}));
+
   static constexpr size_t size() noexcept { return sizeof...(vs); }
   static constexpr bool contains(C v) noexcept {
     size_t ign = 0;
@@ -141,12 +169,11 @@ constexpr auto variadic_set_impl(std::integer_sequence<C, vs...>,
   return Set_<C, vs_sorted.list[is]...>{};
 }
 
-template <typename K, typename V, typename Ks, typename Vs, typename DIs>
+template <typename K, typename V, typename Ks, typename Vs>
 struct Map_;
 
-template <typename K, typename V, typename Vs, K... ks, size_t... dis>
-struct Map_<K, V, std::integer_sequence<K, ks...>, Vs,
-            std::index_sequence<dis...>> {
+template <typename K, typename V, typename Vs, K... ks>
+struct Map_<K, V, std::integer_sequence<K, ks...>, Vs> {
   using keys_type = Set_<K, ks...>;
 
   static constexpr size_t size() noexcept { return keys_type::size(); }
@@ -154,29 +181,33 @@ struct Map_<K, V, std::integer_sequence<K, ks...>, Vs,
     return keys_type::contains(v);
   }
 
+  template <size_t... dis>
+  constexpr Map_(Vs& vs, std::index_sequence<dis...>) noexcept
+      : values_{vs}, data_indices_{dis...} {}
+
   constexpr auto operator()(K k) const noexcept {
     size_t offs = 0;
-    return index_of_<K, ks...>(k, offs) ? std::data(values) + data_index_[offs]
-                                        : nullptr;
+    return index_of_<K, ks...>(k, offs)
+               ? std::data(values_) + data_indices_[offs]
+               : nullptr;
   }
 
   constexpr auto operator()(K k, V def) const noexcept {
     size_t offs = 0;
-    return index_of_<K, ks...>(k, offs) ? values[data_index_[offs]] : def;
+    return index_of_<K, ks...>(k, offs) ? values_[data_indices_[offs]] : def;
   }
 
-  Vs& values;
-
  private:
-  static constexpr const std::array<size_t, sizeof...(ks)> data_index_{dis...};
+  Vs& values_;
+  std::array<size_t, sizeof...(ks)> data_indices_;
 };
 
 template <typename K, typename V, typename Vs, K... ks, size_t... is>
 constexpr auto variadic_map_impl(Vs& values, std::integer_sequence<K, ks...>,
                                  std::index_sequence<is...>) {
   constexpr auto k_sorted = sorted_<K, ks...>();
-  return Map_<K, V, std::integer_sequence<K, k_sorted.list[is]...>, Vs,
-              std::index_sequence<k_sorted.data_index[is]...>>{values};
+  return Map_<K, V, std::integer_sequence<K, k_sorted.list[is]...>, Vs>{
+      values, std::index_sequence<k_sorted.data_index[is]...>{}};
 }
 
 template <typename L, typename V, L label>
@@ -250,6 +281,11 @@ void verify_sorting_algo() {
   static_assert(ss.data_index[2] == 2);
   static_assert(ss.data_index[3] == 1);
   static_assert(ss.data_index[4] == 0);
+}
+
+void verify_set() {
+  variadic_set<int, 1, 2>();
+  variadic_set<int, 1, 1>();
 }
 
 char foo(int x) {
