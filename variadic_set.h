@@ -81,7 +81,10 @@ template <typename C, C... vs, size_t l, size_t w>
 constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,
                               std::index_sequence<l, w>, size_t& res) noexcept {
   constexpr size_t m = l + w / 2;
-  return index_of_impl_(v, a, std::index_sequence<l, m - l>{}, res) ||
+  constexpr std::integral_constant<C, get_at_<C, vs...>(m)> p{};
+
+  return ((v < decltype(p)::value) &&
+          index_of_impl_(v, a, std::index_sequence<l, m - l>{}, res)) ||
          index_of_impl_(v, a, std::index_sequence<m, l + w - m>{}, res);
 }
 
