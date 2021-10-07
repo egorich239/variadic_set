@@ -12,63 +12,7 @@ constexpr C get_at_(size_t idx) noexcept {
   return std::data({vs...})[idx];
 }
 
-template <typename C, C... vs, size_t l>
-constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,
-                              std::index_sequence<l, 0>, size_t& res) noexcept {
-  return false;
-}
-
-template <typename C, C... vs, size_t l>
-constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,
-                              std::index_sequence<l, 1>, size_t& res) noexcept {
-  switch (v) {
-    case get_at_<C, vs...>(l):
-      return (res = l), true;
-  }
-  return false;
-}
-
-template <typename C, C... vs, size_t l>
-constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,
-                              std::index_sequence<l, 2>, size_t& res) noexcept {
-  switch (v) {
-    case get_at_<C, vs...>(l):
-      return (res = l), true;
-    case get_at_<C, vs...>(l + 1):
-      return (res = l + 1), true;
-  }
-  return false;
-}
-
-template <typename C, C... vs, size_t l>
-constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,
-                              std::index_sequence<l, 3>, size_t& res) noexcept {
-  switch (v) {
-    case get_at_<C, vs...>(l):
-      return (res = l), true;
-    case get_at_<C, vs...>(l + 1):
-      return (res = l + 1), true;
-    case get_at_<C, vs...>(l + 2):
-      return (res = l + 2), true;
-  }
-  return false;
-}
-
-template <typename C, C... vs, size_t l>
-constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,
-                              std::index_sequence<l, 4>, size_t& res) noexcept {
-  switch (v) {
-    case get_at_<C, vs...>(l):
-      return (res = l), true;
-    case get_at_<C, vs...>(l + 1):
-      return (res = l + 1), true;
-    case get_at_<C, vs...>(l + 2):
-      return (res = l + 2), true;
-    case get_at_<C, vs...>(l + 3):
-      return (res = l + 3), true;
-  }
-  return false;
-}
+#include "variadic_set-index_of_impl-inl.h"
 
 template <typename C, C... vs, size_t l, size_t w>
 constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,

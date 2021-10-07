@@ -15,9 +15,9 @@ FetchContent_MakeAvailable(googletest)
 add_library(variadic_set INTERFACE)
 target_include_directories(variadic_set INTERFACE .)
 
-#enable_testing()
-#add_executable(typed_literals_test typed_literals_test.cc)
-#target_link_libraries(typed_literals_test gmock_main typed_literals)
-#
-#include(GoogleTest)
-#gtest_discover_tests(typed_literals_test)
+enable_testing()
+add_executable(variadic_set_test variadic_set_test.cc)
+target_link_libraries(variadic_set_test gmock_main variadic_set)
+
+include(GoogleTest)
+gtest_discover_tests(variadic_set_test)
