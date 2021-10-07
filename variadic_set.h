@@ -232,6 +232,7 @@ template <typename L, typename... Vs, L... labels>
 variadic_switch(internal_variadic_set::Case_<L, Vs, labels>...)
     -> variadic_switch<L, internal_variadic_set::Case_<L, Vs, labels>...>;
 
+#if 0
 void verify_sorting_algo() {
   static constexpr auto ss =
       internal_variadic_set::sorted_<int, 5, 4, 3, 2, 1>();
@@ -280,3 +281,4 @@ char bar(int x) {
   static_assert(sw(1, '!') == 'a');
   return sw(x, '!');
 }
+#endif
