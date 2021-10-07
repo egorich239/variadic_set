@@ -91,6 +91,38 @@ constexpr bool index_of_(C v, size_t& res) noexcept {
                         std::index_sequence<0, sizeof...(vs)>{}, res);
 }
 
+template <typename C, size_t N, typename Idx>
+struct Sorted_;
+
+template <typename C, size_t N, size_t... idx>
+struct Sorted_<C, N, std::index_sequence<idx...>> {
+  constexpr Sorted_(std::array<C, N> in)
+      : list{in[idx]...}, original_poisition{} {
+    for (size_t p = 1; p < N; ++p) {
+      C v = list[p];
+      size_t q = 0;
+      while (q < p && list[q] < v) ++q;
+      if (q == p) continue;
+      if (list[q] == v) throw duplicate_element<C>{v};
+      for (size_t r = p; r > q; --r) {
+        list[r] = list[r - 1];
+        original_poisition[r] = original_poisition[r - 1];
+      }
+      list[q] = v;
+      original_poisition[q] = p;
+    }
+  }
+
+  std::array<C, N> list;
+  std::array<size_t, N> original_poisition;
+};
+
+template <typename C, C... vs>
+constexpr auto sorted_() {
+  return Sorted_<C, sizeof...(vs), std::make_index_sequence<sizeof...(vs)>>(
+      {vs...});
+}
+
 template <typename C, C... vs>
 struct Set_ {
   static constexpr size_t size() noexcept { return sizeof...(vs); }
@@ -103,22 +135,8 @@ struct Set_ {
 template <typename C, C... vs, size_t... is>
 constexpr auto variadic_set_impl(std::integer_sequence<C, vs...>,
                                  std::index_sequence<is...>) {
-  constexpr std::array<C, sizeof...(vs)> vs_ordered = [] {
-    std::array<C, sizeof...(vs)> res{vs...};
-    for (size_t p = 1; p < res.size(); ++p) {
-      C v = res[p];
-      size_t q = 0;
-      while (q < p && res[q] < v) ++q;
-      if (q == p) continue;
-      if (res[q] == v) throw duplicate_element<C>{v};
-      for (size_t r = p; r > q; --r) {
-        res[r] = res[r - 1];
-      }
-      res[q] = v;
-    }
-    return res;
-  }();
-  return Set_<C, vs_ordered[is]...>{};
+  constexpr auto vs_sorted = sorted_<C, vs...>();
+  return Set_<C, vs_sorted.list[is]...>{};
 }
 
 template <typename K, typename V, K... ks>
@@ -140,32 +158,107 @@ struct Map_ {
     return index_of_<K, ks...>(k, offs) ? values[offs] : def;
   }
 
-  V (&values)[sizeof...(ks)];
+  std::array<V, sizeof...(ks)> values;
+};
+
+template <typename K, typename V, K... ks, size_t... is>
+constexpr auto variadic_map_impl(const std::array<V, sizeof...(ks)>& values,
+                                 std::integer_sequence<K, ks...>,
+                                 std::index_sequence<is...>) {
+  constexpr auto k_sorted = sorted_<K, ks...>();
+  std::array<V, sizeof...(ks)> values_sorted{
+      values[k_sorted.original_poisition[is]]...};
+  return Map_<K, V, k_sorted.list[is]...>{values_sorted};
+}
+
+template <typename L, typename V, L label>
+struct Case_ {
+  static constexpr L label_() noexcept { return label; }
+
+  V value;
 };
 }  // namespace internal_variadic_set
 
-template <typename I, I... is>
+template <typename C, C... vs>
 constexpr auto variadic_set() {
-  return internal_variadic_set::variadic_set_impl<I>(
-      std::integer_sequence<I, is...>{},
-      std::make_index_sequence<sizeof...(is)>{});
+  return internal_variadic_set::variadic_set_impl<C>(
+      std::integer_sequence<C, vs...>{},
+      std::make_index_sequence<sizeof...(vs)>{});
 }
 
-template <typename K, typename V, K... ks>
-constexpr auto variadic_map(internal_variadic_set::Set_<K, ks...>,
-                            V (&values)[sizeof...(ks)]) noexcept {
-  // order mismatch!
-  return internal_variadic_set::Map_<K, V, ks...>{values};
+template <typename K, K... ks, typename V>
+constexpr auto variadic_map(
+    const std::array<V, sizeof...(ks)>& values) noexcept {
+  return internal_variadic_set::variadic_map_impl<K, V>(
+      values, std::integer_sequence<K, ks...>{},
+      std::make_index_sequence<sizeof...(ks)>{});
 }
 
-template <typename K, typename... Ls>
-class variadic_switch {
-  // TODO
+template <typename L, L label, typename V>
+constexpr auto variadic_case(V v) noexcept {
+  return internal_variadic_set::Case_<L, V, label>{v};
+}
+
+template <typename L, typename... Ls>
+class variadic_switch;
+
+template <typename L, typename... Vs, L... labels>
+class variadic_switch<L, internal_variadic_set::Case_<L, Vs, labels>...> {
+  using common_type_ = std::common_type_t<Vs...>;
+  using map_type_ = decltype(variadic_map<L, labels...>(
+      std::declval<std::array<common_type_, sizeof...(labels)>>()));
+
+ public:
+  static constexpr size_t size() noexcept { return sizeof...(labels); }
+
+  constexpr variadic_switch(internal_variadic_set::Case_<L, Vs, labels>... ls)
+      : map_(variadic_map<L, labels...>(
+            std::array<common_type_, sizeof...(labels)>{ls.value...})) {}
+
+  template <typename V>
+  constexpr common_type_ operator()(L label, V def) const noexcept {
+    return map_(label, def);
+  }
+
+ private:
+  map_type_ map_;
 };
 
+template <typename L, typename... Vs, L... labels>
+variadic_switch(internal_variadic_set::Case_<L, Vs, labels>...)
+    -> variadic_switch<L, internal_variadic_set::Case_<L, Vs, labels>...>;
+
 char foo(int x) {
-  static constexpr const char vs[] = "abra";
-  static constexpr auto m =
-      variadic_map(variadic_set<int, 1, 2, 3, 4, 5>(), vs);
+  static constexpr std::array<const char, 5> vs{'a', 'b', 'r', 'q', 'w'};
+  static constexpr auto m = variadic_map<int, 5, 4, 3, 2, 1>(vs);
+
+  static constexpr auto ss =
+      internal_variadic_set::sorted_<int, 5, 4, 3, 2, 1>();
+  static_assert(ss.list[0] == 1);
+  static_assert(ss.list[1] == 2);
+  static_assert(ss.list[2] == 3);
+  static_assert(ss.list[3] == 4);
+  static_assert(ss.list[4] == 5);
+
+  static_assert(ss.original_poisition[0] == 4);
+  static_assert(ss.original_poisition[1] == 3);
+  static_assert(ss.original_poisition[2] == 2);
+  static_assert(ss.original_poisition[3] == 1);
+  static_assert(ss.original_poisition[4] == 0);
+
+  static_assert(m(1, '!') == 'w');
+  static_assert(m(5, '!') == 'a');
+  static_assert(m(-5, '!') == '!');
   return m(x, '!');
+}
+
+char bar(int x) {
+  static constexpr auto sw = variadic_switch{
+      variadic_case<int, 1>('a'),
+      variadic_case<int, 2>('b'),
+      variadic_case<int, 3>('c'),
+  };
+
+  static_assert(sw(1, '!') == 'a');
+  return sw(x, '!');
 }
