@@ -13,7 +13,7 @@ TEST(VariadicSet, Main) {
   static_assert(s.size() == 3);
 
   static constexpr auto s2 = variadic_set<int, 3, 2, 1>();
-  static_assert(std::is_same_v<decltype(s1), decltype(s2)>);
+  static_assert(std::is_same_v<decltype(s), decltype(s2)>);
 }
 
 }  // namespace
