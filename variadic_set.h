@@ -17,12 +17,33 @@ constexpr C get_at_(size_t idx) noexcept {
 template <typename C, C... vs, size_t l, size_t w>
 constexpr bool index_of_impl_(C v, std::integer_sequence<C, vs...> a,
                               std::index_sequence<l, w>, size_t& res) noexcept {
-  constexpr size_t m = l + w / 2;
-  constexpr std::integral_constant<C, get_at_<C, vs...>(m)> p{};
+  if constexpr (w <= 2 * index_of_impl_max_base_case_) {
+    constexpr size_t m = l + w / 2;
+    constexpr std::integral_constant<C, get_at_<C, vs...>(m)> p{};
 
-  return ((v < decltype(p)::value) &&
-          index_of_impl_(v, a, std::index_sequence<l, m - l>{}, res)) ||
-         index_of_impl_(v, a, std::index_sequence<m, l + w - m>{}, res);
+    return ((v < decltype(p)::value) &&
+            index_of_impl_(v, a, std::index_sequence<l, m - l>{}, res)) ||
+           index_of_impl_(v, a, std::index_sequence<m, l + w - m>{}, res);
+  } else {
+    constexpr size_t m1 = l + w / 4;
+    constexpr size_t m2 = l + w / 2;
+    constexpr size_t m3 = l + w / 2 + w / 4;
+
+    const int marker = (int)(v < m1) + (int)(v < m2) + (int)(v < m3);
+    switch (marker) {
+      case 0:
+        return index_of_impl_(v, a, std::index_sequence<m3, l + w - m3>{}, res);
+      case 1:
+        return index_of_impl_(v, a, std::index_sequence<m2, m3 - m2>{}, res);
+      case 2:
+        return index_of_impl_(v, a, std::index_sequence<m1, m2 - m1>{}, res);
+      case 3:
+        return index_of_impl_(v, a, std::index_sequence<l, m1 - l>{}, res);
+    }
+
+    // unreachable
+    return false;
+  }
 }
 
 template <typename C, C... vs>
