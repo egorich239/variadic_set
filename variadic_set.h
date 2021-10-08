@@ -63,7 +63,6 @@ struct Sorted_<C, N, std::index_sequence<idx...>> {
       C v = list[p];
       size_t q = 0;
       while (q < p && list[q] < v) ++q;
-      if (q == p) continue;
       for (size_t r = p; r > q; --r) {
         list[r] = list[r - 1];
         data_index[r] = data_index[r - 1];
