@@ -3,40 +3,6 @@
 #include <variadic_set.h>
 
 namespace {
-#if 0
-namespace internal_variadic_set {
-template <typename C, size_t N, typename Idx>
-struct Sorted_;
-
-template <typename C, size_t N, size_t... idx>
-struct Sorted_<C, N, std::index_sequence<idx...>> {
-  constexpr Sorted_(std::array<C, N> in) noexcept
-      : list{in[idx]...}, data_index{} {
-    for (size_t p = 1; p < N; ++p) {
-      C v = list[p];
-      size_t q = 0;
-      while (q < p && list[q] < v) ++q;
-      if (q == p) continue;
-      for (size_t r = p; r > q; --r) {
-        list[r] = list[r - 1];
-        data_index[r] = data_index[r - 1];
-      }
-      list[q] = v;
-      data_index[q] = p;
-    }
-  }
-
-  std::array<C, N> list;
-  std::array<size_t, N> data_index;
-};
-
-template <typename C, C... vs>
-constexpr auto sorted_() noexcept {
-  return Sorted_<C, sizeof...(vs), std::make_index_sequence<sizeof...(vs)>>(
-      {vs...});
-}
-}  // namespace internal_variadic_set
-#endif
 TEST(Sorting, SmallList) {
   static constexpr auto s1 = internal_variadic_set::sorted_<int, 1, 2, 3>();
   static_assert(s1.list[0] == 1);
